@@ -158,3 +158,75 @@ Test-set evaluation is always performed against the **raw original observations*
 | neuralforecast | ≥ 1.7 |
 
 All notebooks are self-contained. Running `DO_gap_filling_pipeline.ipynb` first generates the CSV inputs required by `sktime.ipynb` and `AutoGluonTS.ipynb`.
+
+## Computational Requirements
+
+All experiments are CPU-compatible. No GPU is required to reproduce the results, though a GPU accelerates DeepAR training in `sktime.ipynb` and `AutoGluonTS.ipynb`.
+
+All experiments in the paper were run on local hardware — no external cluster or cloud provider was used.
+
+---
+
+### `DO_gap_filling_pipeline.ipynb` — CPU only
+
+The heaviest operation is fitting Prophet independently per gap > 72 h per station. Each Prophet fit runs in seconds on a single core. STL and MA are lightweight pandas/statsmodels operations.
+
+| Resource | Minimum | Recommended |
+|---|---|---|
+| CPU | 4 cores | 8 cores |
+| RAM | 8 GB | 16 GB |
+| GPU | Not required | Not required |
+
+**Estimated wall-clock time:** ~5–15 min total.
+
+> Memory note: Prophet fits can spike RAM briefly when processing long gaps across all six stations sequentially.
+
+---
+
+### `sktime.ipynb` — CPU only (GPU optional for DeepAR)
+
+| Model | Compute | Notes |
+|---|---|---|
+| Prophet | CPU | 1 fit per station × 3 datasets = 18 fits |
+| XGBoost | CPU, multi-core | `n_jobs=-1`, window 24×7 h, 300 trees |
+| SARIMA | CPU | Window truncated to last 60 days (1 440 points) |
+| DeepAR | CPU or GPU | neuralforecast NF_DeepAR, `max_steps=50`, LSTM hidden=64, 2 layers, input 24×7 h; trains globally on all 6 stations |
+
+| Resource | Minimum | Recommended |
+|---|---|---|
+| CPU | 8 cores | 8 cores |
+| RAM | 16 GB | 16 GB |
+| GPU | Not required | ≥ 6 GB VRAM (e.g. NVIDIA RTX 3060) |
+
+**Estimated wall-clock time:** ~30–60 min CPU-only (DeepAR dominates). Without a GPU, DeepAR trains via PyTorch/Lightning on CPU.
+
+---
+
+### `AutoGluonTS.ipynb` — CPU only (GPU strongly recommended for DeepAR)
+
+| Model | Compute | Notes |
+|---|---|---|
+| DeepAR | GPU recommended | AutoGluon native DeepAR, hidden=64, 2 layers, `max_epochs=50`, context 24×7 h, `time_limit=1800 s` per fit |
+| XGBoost | CPU | AutoGluon DirectTabular, 300 trees |
+| Prophet | CPU | Manual fit per station × 3 datasets |
+| SARIMA | CPU | statsmodels SARIMAX, manual fit per station |
+
+| Resource | Minimum | Recommended |
+|---|---|---|
+| CPU | 8 cores | 8 cores |
+| RAM | 16 GB | 16 GB |
+| GPU | Not required | ≥ 8 GB VRAM (e.g. NVIDIA RTX 3070 / A10G) |
+
+AutoGluon auto-detects CUDA and falls back to CPU training for DeepAR if no GPU is available. With a GPU, DeepAR training per dataset fits comfortably within the 1 800 s time limit.
+
+**Estimated wall-clock time:** ~60–120 min CPU-only; ~20–40 min with GPU.
+
+---
+
+### Summary
+
+| Notebook | GPU required | Min RAM | Recommended |
+|---|---|---|---|
+| `DO_gap_filling_pipeline` | No | 8 GB | 16 GB, CPU only |
+| `sktime` | No (optional) | 16 GB | GPU ≥ 6 GB VRAM |
+| `AutoGluonTS` | No (strongly recommended) | 16 GB | GPU ≥ 8 GB VRAM |
